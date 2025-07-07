@@ -37,7 +37,8 @@ app.get('/', (req, res) => {
 });
 
 app.get('/tree', verifyToken, (req, res) => {
-  const { path: rel = '', project } = req.query;
+  const project = req.query.project;
+  const rel = req.query.path || '';  // e.g. "lib"
   const base = path.join(PROJECTS_ROOT, req.user.id, project, rel);
 
   if (!fs.existsSync(base)) return res.status(404).send('Not found');
