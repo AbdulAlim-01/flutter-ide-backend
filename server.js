@@ -58,6 +58,7 @@ app.get('/tree', verifyToken, (req, res) => {
 
 // 📁 Create Project
 app.post('/create', verifyToken, (req, res) => {
+  console.log('🔥 [BACKEND] POST /create called, body:', req.body);
   const { projectName } = req.body;
   const uid = req.user.id;
   const dir = path.join(PROJECTS_ROOT, uid, projectName);
@@ -72,6 +73,7 @@ app.post('/create', verifyToken, (req, res) => {
 
 // 📁 List Projects
 app.get('/list', verifyToken, (req, res) => {
+   console.log('🔥 [BACKEND] GET /list called, body:', req.body);
   const userDir = path.join(PROJECTS_ROOT, req.user.id);
   if (!fs.existsSync(userDir)) return res.json({ projects: [] });
 
@@ -83,6 +85,7 @@ app.get('/list', verifyToken, (req, res) => {
 
 // 📄 Read File
 app.get('/file', verifyToken, (req, res) => {
+   console.log('🔥 [BACKEND] GET /file called, body:', req.body);
   const { project, path: rel } = req.query;
   const filePath = path.join(PROJECTS_ROOT, req.user.id, project, rel);
   if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
