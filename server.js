@@ -18,15 +18,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 app.use(cors());
 app.use(bodyParser.json());
 
-// 🔐 Middleware: Validate user token
+// Middleware to verify token
 async function verifyToken(req, res, next) {
   const auth = req.headers.authorization || '';
   const token = auth.split(' ')[1];
   if (!token) return res.status(401).send('Missing token');
 
   const { data: { user }, error } = await supabase.auth.getUser(token);
- if (error || !user) return res.status(401).send((error && error.message) || 'Unauthorized');
-
+  if (error || !user) return res.status(401).send(error?.message || 'Unauthorized');
 
   req.user = user;
   next();
@@ -36,11 +35,61 @@ app.get('/', (req, res) => {
   res.send('✅ Flutter IDE backend is running.');
 });
 
-app.get('/tree', verifyToken, (req, res) => {
-  const project = req.query.project;
-  const rel = req.query.path || '';  // e.g. "lib"
-  const base = path.join(PROJECTS_ROOT, req.user.id, project, rel);
+// 📁 Create Project (auth required)
+app.post('/create', verifyToken, (req, res) => {
+  const { projectName } = req.body;
+  const uid = req.user.id;
+  const dir = path.join(PROJECTS_ROOT, uid, projectName);
+  fs.mkdirSync(dir, { recursive: true });
 
+  const proc = spawn('flutter', ['create', '--project-name', projectName, dir]);
+  proc.on('close', code => {
+    if (code !== 0) return res.status(500).send('flutter create failed');
+    res.json({ status: 'created' });
+  });
+});
+
+// 📁 List Projects (auth required)
+app.get('/list', verifyToken, (req, res) => {
+  const userDir = path.join(PROJECTS_ROOT, req.user.id);
+  if (!fs.existsSync(userDir)) return res.json({ projects: [] });
+
+  const projects = fs.readdirSync(userDir)
+    .filter(name => fs.statSync(path.join(userDir, name)).isDirectory());
+
+  res.json({ projects });
+});
+
+// 📁 Delete Project (auth required)
+app.post('/delete', verifyToken, (req, res) => {
+  const { projectName } = req.body;
+  const dir = path.join(PROJECTS_ROOT, req.user.id, projectName);
+  if (!fs.existsSync(dir)) return res.status(404).send('Project not found');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+  res.json({ status: 'deleted' });
+});
+
+// 📄 Read File
+app.get('/file', verifyToken, (req, res) => {
+  const { project, path: rel } = req.query;
+  const filePath = path.join(PROJECTS_ROOT, req.user.id, project, rel);
+  if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
+  res.send(fs.readFileSync(filePath, 'utf8'));
+});
+
+// 💾 Save File
+app.post('/save', verifyToken, (req, res) => {
+  const { project, path: rel, content } = req.body;
+  const filePath = path.join(PROJECTS_ROOT, req.user.id, project, rel);
+  fs.writeFileSync(filePath, content, 'utf8');
+  res.json({ status: 'saved' });
+});
+
+// 🌲 Tree View of Folder
+app.get('/tree', verifyToken, (req, res) => {
+  const { project, path: rel = '' } = req.query;
+  const base = path.join(PROJECTS_ROOT, req.user.id, project, rel);
   if (!fs.existsSync(base)) return res.status(404).send('Not found');
 
   const items = fs.readdirSync(base).map(name => {
@@ -55,13 +104,10 @@ app.get('/tree', verifyToken, (req, res) => {
 });
 
 
-
-// 📁 Create Project
-app.post('/create', verifyToken, (req, res) => {
-  console.log('🔥 [BACKEND] POST /create called, body:', req.body);
-  const { projectName } = req.body;
-  const uid = req.user.id;
-  const dir = path.join(PROJECTS_ROOT, uid, projectName);
+// 🔓 Admin Routes (no token)
+app.post('/admin/create', (req, res) => {
+  const { userId, projectName } = req.body;
+  const dir = path.join(PROJECTS_ROOT, userId, projectName);
   fs.mkdirSync(dir, { recursive: true });
 
   const proc = spawn('flutter', ['create', '--project-name', projectName, dir]);
@@ -71,10 +117,9 @@ app.post('/create', verifyToken, (req, res) => {
   });
 });
 
-// 📁 List Projects
-app.get('/list', verifyToken, (req, res) => {
-   console.log('🔥 [BACKEND] GET /list called, body:', req.body);
-  const userDir = path.join(PROJECTS_ROOT, req.user.id);
+app.get('/admin/list', (req, res) => {
+  const { userId } = req.query;
+  const userDir = path.join(PROJECTS_ROOT, userId);
   if (!fs.existsSync(userDir)) return res.json({ projects: [] });
 
   const projects = fs.readdirSync(userDir)
@@ -83,21 +128,14 @@ app.get('/list', verifyToken, (req, res) => {
   res.json({ projects });
 });
 
-// 📄 Read File
-app.get('/file', verifyToken, (req, res) => {
-   console.log('🔥 [BACKEND] GET /file called, body:', req.body);
-  const { project, path: rel } = req.query;
-  const filePath = path.join(PROJECTS_ROOT, req.user.id, project, rel);
-  if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
-  res.send(fs.readFileSync(filePath, 'utf8'));
+app.post('/admin/delete', (req, res) => {
+  const { userId, projectName } = req.body;
+  const dir = path.join(PROJECTS_ROOT, userId, projectName);
+  if (!fs.existsSync(dir)) return res.status(404).send('Project not found');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+  res.json({ status: 'deleted' });
 });
 
-// 💾 Save File
-app.post('/save', verifyToken, (req, res) => {
-  const { project, path: rel, content } = req.body;
-  const filePath = path.join(PROJECTS_ROOT, req.user.id, project, rel);
-  fs.writeFileSync(filePath, content, 'utf8');
-  res.json({ status: 'saved' });
-});
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
