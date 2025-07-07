@@ -22,7 +22,7 @@ const supabaseKey = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Configuration
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 const PROJECTS_DIR = path.join(__dirname, 'temp_projects');
 const FLUTTER_COMMAND = process.env.FLUTTER_COMMAND || 'flutter';
 
