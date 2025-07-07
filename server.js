@@ -36,6 +36,28 @@ app.get('/', (req, res) => {
   res.send('✅ Flutter IDE backend is running.');
 });
 
+// PLACE THIS BELOW your other routes in server.js
+app.get('/tree', verifyToken, (req, res) => {
+  const rel = req.query.path || '';
+  // base it off the logged‑in user’s folder
+  const root = path.join(PROJECTS_ROOT, req.user.id, rel);
+
+  if (!fs.existsSync(root)) {
+    return res.status(404).send('Not found');
+  }
+
+  const items = fs.readdirSync(root).map(name => {
+    const full = path.join(root, name);
+    return {
+      name,
+      isDirectory: fs.statSync(full).isDirectory(),
+    };
+  });
+
+  res.json({ path: rel, items });
+});
+
+
 // 📁 Create Project
 app.post('/create', verifyToken, (req, res) => {
   const { projectName } = req.body;
