@@ -6,7 +6,7 @@ const { promisify } = require('util');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const yaml = require('js-yaml');
-const { v4: uuidv4 } = require('uuid');
+// Removed: const { v4: uuidv4 } = require('uuid');
 
 const execAsync = promisify(exec);
 const app = express();
@@ -25,6 +25,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const PORT = process.env.PORT || 10000;
 const PROJECTS_DIR = path.join(__dirname, 'temp_projects');
 const FLUTTER_COMMAND = process.env.FLUTTER_COMMAND || 'flutter';
+
+// Rest of your code remains the same...
+// [Include all the remaining functions and routes from your original code]
 
 // Ensure projects directory exists
 async function ensureProjectsDir() {
