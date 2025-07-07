@@ -25,7 +25,8 @@ async function verifyToken(req, res, next) {
   if (!token) return res.status(401).send('Missing token');
 
   const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).send(error?.message || 'Unauthorized');
+ if (error || !user) return res.status(401).send((error && error.message) || 'Unauthorized');
+
 
   req.user = user;
   next();
