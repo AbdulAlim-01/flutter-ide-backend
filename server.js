@@ -32,6 +32,10 @@ async function verifyToken(req, res, next) {
   next();
 }
 
+app.get('/', (req, res) => {
+  res.send('✅ Flutter IDE backend is running.');
+});
+
 // 📁 Create Project
 app.post('/create', verifyToken, (req, res) => {
   const { projectName } = req.body;
