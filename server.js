@@ -8,34 +8,50 @@ const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const PROJECTS_ROOT = "/projects"; // make sure this exists in your server
+const PROJECTS_ROOT = "/projects"; // ensure this path is mounted
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ─── CORS CONFIG ───────────────────────────────────────────────────────────
+const FRONTEND_ORIGIN = 'https://web.crazzy.dev';  // ← update this
 
-app.use(cors());
+app.use(cors({
+  origin: FRONTEND_ORIGIN,
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// Handle preflight for all routes
+app.options('*', cors());
+
+// ─── SETUP JSON PARSING ─────────────────────────────────────────────────────
 app.use(bodyParser.json());
 
-// 🔐 Middleware
+// ─── SUPABASE CLIENT ────────────────────────────────────────────────────────
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ─── AUTH MIDDLEWARE ────────────────────────────────────────────────────────
 async function verifyToken(req, res, next) {
   const auth = req.headers.authorization || '';
   const token = auth.split(' ')[1];
   if (!token) return res.status(401).send('Missing token');
+
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) return res.status(401).send('Unauthorized');
+
   req.user = user;
   next();
 }
 
-// ✅ Routes
+// ─── ROUTES ───────────────────────────────────────────────────────────────────
 
+// Health check
 app.get('/', (req, res) => {
   res.send('✅ Flutter IDE backend is running.');
 });
 
-// Create Project
+// Create a new Flutter project
 app.post('/create', verifyToken, (req, res) => {
   const { projectName } = req.body;
   const uid = req.user.id;
@@ -49,7 +65,7 @@ app.post('/create', verifyToken, (req, res) => {
   });
 });
 
-// List Projects
+// List all projects for the logged‑in user
 app.get('/list', verifyToken, (req, res) => {
   const userDir = path.join(PROJECTS_ROOT, req.user.id);
   if (!fs.existsSync(userDir)) return res.json({ projects: [] });
@@ -60,10 +76,9 @@ app.get('/list', verifyToken, (req, res) => {
   res.json({ projects });
 });
 
-// Tree (Files in lib/)
+// Get directory tree (e.g., files under lib/)
 app.get('/tree', verifyToken, (req, res) => {
-  const project = req.query.project;
-  const rel = req.query.path || '';
+  const { project, path: rel = '' } = req.query;
   const base = path.join(PROJECTS_ROOT, req.user.id, project, rel);
 
   if (!fs.existsSync(base)) return res.status(404).send('Not found');
@@ -79,7 +94,7 @@ app.get('/tree', verifyToken, (req, res) => {
   res.json({ items });
 });
 
-// Read File
+// Read a file’s contents
 app.get('/file', verifyToken, (req, res) => {
   const { project, path: rel } = req.query;
   const filePath = path.join(PROJECTS_ROOT, req.user.id, project, rel);
@@ -87,7 +102,7 @@ app.get('/file', verifyToken, (req, res) => {
   res.send(fs.readFileSync(filePath, 'utf8'));
 });
 
-// Save File
+// Save (overwrite) a file
 app.post('/save', verifyToken, (req, res) => {
   const { project, path: rel, content } = req.body;
   const filePath = path.join(PROJECTS_ROOT, req.user.id, project, rel);
@@ -95,17 +110,14 @@ app.post('/save', verifyToken, (req, res) => {
   res.json({ status: 'saved' });
 });
 
-// Delete Project
+// Delete an entire project
 app.delete('/delete', verifyToken, (req, res) => {
   const { projectName } = req.body;
-  const uid = req.user.id;
-  const dir = path.join(PROJECTS_ROOT, uid, projectName);
-
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
-    return res.json({ status: 'deleted' });
-  }
-  res.status(404).send('Project not found');
+  const dir = path.join(PROJECTS_ROOT, req.user.id, projectName);
+  if (!fs.existsSync(dir)) return res.status(404).send('Project not found');
+  fs.rmSync(dir, { recursive: true, force: true });
+  res.json({ status: 'deleted' });
 });
 
+// ─── START SERVER ───────────────────────────────────────────────────────────
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
