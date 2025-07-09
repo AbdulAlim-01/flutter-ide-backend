@@ -1,28 +1,37 @@
-# Use the Flutter Docker image
-FROM fischerscode/flutter:stable
+# Use a Flutter base image with Node.js installation capability
+FROM cirrusci/flutter:stable
 
-# Switch to root so we can install packages
+# Switch to root user to install dependencies
 USER root
 
-# Install Node.js and npm
-RUN apt-get update && apt-get install -y nodejs npm
+# Install system dependencies for Node.js, npm, and other tooling
+RUN apt-get update && \
+    apt-get install -y curl gnupg2 build-essential && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g npm && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Set an environment variable for the port
+# Set environment variables
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Set working directory
+# Create and set working directory
 WORKDIR /app
 
-# Copy package manifests and install dependencies
+# Copy package files and install dependencies
 COPY package.json package-lock.json* ./
 RUN npm install
 
-# Copy the rest of the application
-COPY server.js ./
+# Copy entire app (includes server.js and other files)
+COPY . .
 
-# Expose the port defined in the ENV instruction
+# Ensure Flutter is installed and pre-cached to speed up commands
+RUN flutter doctor -v
+
+# Expose server port
 EXPOSE ${PORT}
 
-# Start the server
+# Start the Express server
 CMD ["node", "server.js"]
