@@ -3,9 +3,13 @@ FROM fischerscode/flutter:stable
 
 # Install curl and a modern version of Node.js (18.x)
 # Then install other dependencies for the healthcheck
-RUN apt-get update && apt-get install -y curl && \
+RUN apt-get update --fix-missing && \
+    apt-get upgrade -y && \
+    apt-get install -y curl && \
     curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs
+    apt-get install -y nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
 RUN groupadd --gid 1000 node && \
